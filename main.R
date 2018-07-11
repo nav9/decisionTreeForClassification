@@ -2,26 +2,33 @@
 #License: MIT
 #Decision tree for Cardiotocographic data
 
-library(readr)
-library(dplyr)
-library(party)
-library(rpart)
-library(rpart.plot)
-library(ROCR)
-set.seed(100)
-
-if(!is.null(dev.list())) dev.off()#clear old plots
+#if(!is.null(dev.list())) dev.off()#clear old plots
 cat("\f")#clear console
 #rm(list = setdiff(ls(), lsf.str()))#remove all objects except functions
 #rm(list=ls())#remove all objects loaded into R
 #rm(list=lsf.str())#remove all functions but not variables
 #rm(list=ls(all=TRUE))#clear all variables
 
+library(readr)
+library(dplyr)
+library(party)
+library(rpart)
+library(rpart.plot)
+library(ROCR)
+library(party)
+library(partykit)
+set.seed(50)
+
 fileName = "CTG.csv"
 stR = 2; enR = 2126; stC = 7; enC = 28; aC = 40
 message("Loading data from: ", fileName)
-dat<-read.csv(fileName, header=TRUE, sep=",")
-dat <- select(dat,LB,AC,FM,UC,ASTV,MSTV,ALTV,MLTV,DL,DS,DP,DR,Width,Min,Max,Nmax,Nzeros,Mode,Mean,Median,Variance,Tendency,NSP)#choose relevant columns
+dat <- read.csv(fileName, header=TRUE, sep=",")
+#LB - FHR baseline (beats per minute)
+#AC - # of accelerations per second
+#FM - # of fetal movements per second
+#NSP - fetal state class code (N=normal; S=suspect; P=pathologic)
+#dat <- select(dat,LB,AC,FM,UC,ASTV,MSTV,ALTV,MLTV,DL,DS,DP,DR,Width,Min,Max,Nmax,Nzeros,Mode,Mean,Median,Variance,Tendency,NSP)#choose relevant columns
+dat <- select(dat,LB,AC,FM,NSP)#choose relevant columns
 dat <- dat[stR:enR,]#choose relevant rows
 cat("Loaded data dimensions:", dim(dat));#print(paste("Loaded data with ", nrow(dat), "rows", ncol(dat),"columns"))
 
@@ -38,17 +45,19 @@ validate=dat[pd==2,]
 #View the structure of train and validate data
 str(train)
 str(validate)
-library(party)
+
 #ctree is for classification tree
 #for illustration we are using only few variables
-#Building the tree on the train data
-tree=ctree(NSPF~LB+AC+FM+UC+ASTV+MSTV+ALTV+MLTV+DL+DS+DP+DR+Width+Min+Max+Nmax+Nzeros+Mode+Mean+Median+Variance+Tendency, data=train)
+#Building the tree on the training data
+#tree=ctree(NSPF~LB+AC+FM+UC+ASTV+MSTV+ALTV+MLTV+DL+DS+DP+DR+Width+Min+Max+Nmax+Nzeros+Mode+Mean+Median+Variance+Tendency, data=train)
+tree=ctree(NSPF~LB+AC+FM, data=train)
 tree
 plot(tree)
-#Pruning the tree with controls option(to reduce the branches)
+#Pruning the tree with controls option (to reduce the branches)
 #mincriterion=0.99 specifies the confidence level, i.e., 99% confident that the variable is significant
 #minsplit=1100 specifies that the branch will be split into 2 only when the sample is 1100 which restricts the growth of the tee
-tree=ctree(NSPF~LB+AC+FM+UC+DL+DS+DP+ASTV+MSTV+ALTV+MLTV, data=train, controls=ctree_control(mincriterion=0.99, minsplit=1800))
+#tree=ctree(NSPF~LB+AC+FM+UC+DL+DS+DP+ASTV+MSTV+ALTV+MLTV, data=train, controls=ctree_control(mincriterion=0.99, minsplit=1800))
+tree=ctree(NSPF~LB+AC+FM, data=train, control=ctree_control(mincriterion=0.99, minsplit=500))
 tree
 plot(tree,type="simple")
 plot(tree)
@@ -72,18 +81,16 @@ print(tab)
 tab<-table(predict(tree), train$NSPF)
 print(tab)
 # % of misclassification is provided based on the training data
-1-sum(diag(tab))/sum(tab)
-#Misclassification error of the above statement : [1] 0.1560284
-
+percentErrTraining <- 1-sum(diag(tab))/sum(tab)
+print(cat("percentErrTraining:", percentErrTraining))
 #Misclassification error on validate data
 testpred=predict(tree, newdata=validate)
 
 tab<-table(testpred, validate$NSPF)
 print(tab)
 # % of misclassification is provided based on the Validation data
-
-1-sum(diag(tab))/sum(tab)
-
+percentErrValidation <- 1-sum(diag(tab))/sum(tab)
+print(cat("percentErrValidation:",percentErrValidation))
 
 
 
